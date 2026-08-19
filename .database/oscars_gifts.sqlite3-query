@@ -1,0 +1,9 @@
+-- Database: ./oscars_gifts.db
+-- Useful queries for Oscar's gift contribution tracker.
+
+SELECT id, gift_name, price
+FROM gifts;
+
+SELECT contributor_name, amount
+FROM contributions
+WHERE gift_id = 1;

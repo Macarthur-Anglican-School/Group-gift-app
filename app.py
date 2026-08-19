@@ -4,7 +4,7 @@ from flask import Flask, abort, redirect, render_template, request, url_for
 from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
-DATABASE_PATH = Path(__file__).parent / ".database" / "cyberwatch.db"
+DATABASE_PATH = Path(__file__).parent / ".database" / "oscars_gifts.db"
 engine = create_engine(f"sqlite:///{DATABASE_PATH}")
 
 
