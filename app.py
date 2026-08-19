@@ -62,6 +62,21 @@ def add_gift():
     return render_template("add-gift.html")
 
 
+@app.route("/gifts/<int:gift_id>/remove", methods=["POST"])
+def remove_gift(gift_id):
+    get_gift(gift_id)
+    with engine.begin() as connection:
+        connection.execute(
+            text("DELETE FROM contributions WHERE gift_id = :gift_id"),
+            {"gift_id": gift_id},
+        )
+        connection.execute(
+            text("DELETE FROM gifts WHERE id = :gift_id"),
+            {"gift_id": gift_id},
+        )
+    return redirect(url_for("home"))
+
+
 def get_gift(gift_id):
     with engine.connect() as connection:
         gift = connection.execute(text("SELECT id, gift_name, price FROM gifts WHERE id = :gift_id"), {"gift_id": gift_id}).mappings().first()
