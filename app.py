@@ -70,21 +70,39 @@ def get_gift(gift_id):
     return gift
 
 
+def get_total_contributed(gift_id, connection):
+    return connection.execute(
+        text("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE gift_id = :gift_id"),
+        {"gift_id": gift_id},
+    ).scalar_one()
+
+
 @app.route("/gifts/<int:gift_id>/contributions")
 def contributions(gift_id):
     gift = get_gift(gift_id)
     with engine.connect() as connection:
         contribution_list = connection.execute(text("""
-            SELECT contributor_name, amount FROM contributions
+            SELECT id, contributor_name, amount FROM contributions
             WHERE gift_id = :gift_id ORDER BY id DESC
         """), {"gift_id": gift_id}).mappings().all()
     total = sum(contribution["amount"] for contribution in contribution_list)
-    return render_template("contributions.html", gift=gift, contributions=contribution_list, total=total)
+    remaining = max(gift["price"] - total, 0)
+    return render_template(
+        "contributions.html", gift=gift, contributions=contribution_list,
+        total=total, remaining=remaining,
+    )
 
 
 @app.route("/gifts/<int:gift_id>/add-contribution", methods=["GET", "POST"])
 def add_contribution(gift_id):
     gift = get_gift(gift_id)
+    with engine.connect() as connection:
+        total = get_total_contributed(gift_id, connection)
+    remaining = max(gift["price"] - total, 0)
+
+    if request.method == "GET" and remaining <= 0:
+        return redirect(url_for("contributions", gift_id=gift_id))
+
     if request.method == "POST":
         contributor_name = request.form["contributor_name"].strip()
         try:
@@ -96,12 +114,29 @@ def add_contribution(gift_id):
         if amount <= 0:
             return render_template("add-contribution.html", gift=gift, error="The amount must be greater than zero."), 400
         with engine.begin() as connection:
+            current_total = get_total_contributed(gift_id, connection)
+            current_remaining = max(gift["price"] - current_total, 0)
+            if current_remaining <= 0:
+                return render_template("add-contribution.html", gift=gift, remaining=0, error="This gift has already been fully funded."), 400
+            if amount > current_remaining:
+                return render_template("add-contribution.html", gift=gift, remaining=current_remaining, error=f"The contribution cannot be more than the ${current_remaining:.2f} still needed."), 400
             connection.execute(text("""
                 INSERT INTO contributions (gift_id, contributor_name, amount)
                 VALUES (:gift_id, :contributor_name, :amount)
             """), {"gift_id": gift_id, "contributor_name": contributor_name, "amount": amount})
         return redirect(url_for("contributions", gift_id=gift_id))
-    return render_template("add-contribution.html", gift=gift)
+    return render_template("add-contribution.html", gift=gift, remaining=remaining)
+
+
+@app.route("/gifts/<int:gift_id>/contributions/<int:contribution_id>/remove", methods=["POST"])
+def remove_contribution(gift_id, contribution_id):
+    get_gift(gift_id)
+    with engine.begin() as connection:
+        connection.execute(text("""
+            DELETE FROM contributions
+            WHERE id = :contribution_id AND gift_id = :gift_id
+        """), {"contribution_id": contribution_id, "gift_id": gift_id})
+    return redirect(url_for("contributions", gift_id=gift_id))
 
 
 if __name__ == "__main__":

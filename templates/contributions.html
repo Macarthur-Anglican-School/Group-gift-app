@@ -1,3 +1,27 @@
 {% extends 'base.html' %}
 {% block title %}Contributions | Oscar's Gift List{% endblock %}
-{% block content %}<section class="page-intro compact-intro"><p class="eyebrow">Contributions for</p><h1>{{ gift.gift_name }}</h1><p>${{ '%.2f' | format(total) }} of ${{ '%.2f' | format(gift.price) }} collected.</p><a class="btn btn-primary" href="{{ url_for('add_contribution', gift_id=gift.id) }}">Add contribution</a></section>{% if contributions %}<section class="contribution-list">{% for contribution in contributions %}<div class="contribution-row"><span>{{ contribution.contributor_name }}</span><strong>${{ '%.2f' | format(contribution.amount) }}</strong></div>{% endfor %}</section>{% else %}<section class="empty-state"><h2>No contributions yet</h2><p>Be the first person to contribute to this gift.</p></section>{% endif %}<a class="back-link" href="{{ url_for('home') }}">← Back to Oscar's gifts</a>{% endblock %}
+{% block content %}
+<section class="page-intro compact-intro">
+    <p class="eyebrow">Contributions for</p>
+    <h1>{{ gift.gift_name }}</h1>
+    <p>${{ '%.2f' | format(total) }} of ${{ '%.2f' | format(gift.price) }} collected.</p>
+    {% if remaining > 0 %}
+    <a class="btn btn-primary" href="{{ url_for('add_contribution', gift_id=gift.id) }}">Add contribution</a>
+    {% else %}
+    <p class="funded-message">This gift is fully funded.</p>
+    {% endif %}
+</section>
+{% if contributions %}
+<section class="contribution-list">
+    {% for contribution in contributions %}
+    <div class="contribution-row">
+        <span>{{ contribution.contributor_name }}</span>
+        <div class="contribution-actions"><strong>${{ '%.2f' | format(contribution.amount) }}</strong><form action="{{ url_for('remove_contribution', gift_id=gift.id, contribution_id=contribution.id) }}" method="post"><button class="remove-button" type="submit">Remove</button></form></div>
+    </div>
+    {% endfor %}
+</section>
+{% else %}
+<section class="empty-state"><h2>No contributions yet</h2><p>Be the first person to contribute to this gift.</p></section>
+{% endif %}
+<a class="back-link" href="{{ url_for('home') }}">← Back to Oscar's gifts</a>
+{% endblock %}
