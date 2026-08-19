@@ -1,0 +1,7 @@
+.database
+static
+static/css
+static/js
+static/icons
+static/images
+templates

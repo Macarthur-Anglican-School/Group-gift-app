@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% block content %}
+<section class="page-intro"><p class="eyebrow">Gift collection</p><h1>Gifts for Oscar</h1><p>Choose a gift to see who has contributed, or add a new gift to the list.</p></section>
+{% if gifts %}<div class="row g-4">{% for gift in gifts %}{% set remaining = [gift.price - gift.total_contributed, 0] | max %}
+<div class="col-12 col-md-6 col-lg-4"><article class="gift-card"><h2>{{ gift.gift_name }}</h2><p class="price">${{ '%.2f' | format(gift.price) }}</p><div class="progress"><div class="progress-bar" style="width: {{ [gift.total_contributed / gift.price * 100 if gift.price else 100, 100] | min }}%"></div></div><p class="funding">${{ '%.2f' | format(gift.total_contributed) }} contributed</p><p class="remaining">${{ '%.2f' | format(remaining) }} left to collect</p><a class="btn btn-primary w-100" href="{{ url_for('contributions', gift_id=gift.id) }}">View contributions</a></article></div>
+{% endfor %}</div>{% else %}<section class="empty-state"><h2>No gifts yet</h2><p>Start Oscar's list by adding the first gift.</p><a class="btn btn-primary" href="{{ url_for('add_gift') }}">Add a gift</a></section>{% endif %}
+{% endblock %}
