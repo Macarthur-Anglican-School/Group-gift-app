@@ -7,7 +7,7 @@ app = Flask(__name__)
 DATABASE_PATH = Path(__file__).parent / ".database" / "oscars_gifts.db"
 engine = create_engine(f"sqlite:///{DATABASE_PATH}")
 
-
+#intialise program (Assisted by AI)
 def initialise_database():
     """Create the tables used by Oscar's gift collection app if needed."""
     with engine.begin() as connection:
@@ -31,7 +31,7 @@ def initialise_database():
 
 initialise_database()
 
-
+#load home page
 @app.route("/")
 def home():
     with engine.connect() as connection:
@@ -45,7 +45,7 @@ def home():
         """)).mappings().all()
     return render_template("index.html", gifts=gifts)
 
-
+#add gift function
 @app.route("/add-gift", methods=["GET", "POST"])
 def add_gift():
     if request.method == "POST":
@@ -63,7 +63,7 @@ def add_gift():
         return redirect(url_for("home"))
     return render_template("add-gift.html")
 
-
+#remove gift function
 @app.route("/gifts/<int:gift_id>/remove", methods=["POST"])
 def remove_gift(gift_id):
     get_gift(gift_id)
@@ -78,7 +78,7 @@ def remove_gift(gift_id):
         )
     return redirect(url_for("home"))
 
-
+#get gift function
 def get_gift(gift_id):
     with engine.connect() as connection:
         gift = connection.execute(text("SELECT id, gift_name, price FROM gifts WHERE id = :gift_id"), {"gift_id": gift_id}).mappings().first()
@@ -86,7 +86,7 @@ def get_gift(gift_id):
         abort(404)
     return gift
 
-
+#shows the gift summary (assisted by AI)
 def get_gift_summary(gift_id, connection):
     """Fetch a gift and its running contribution total in one database query."""
     # EFFICIENCY 2 — SQLite LEFT JOIN + COALESCE: this replaces the previous
@@ -104,7 +104,7 @@ def get_gift_summary(gift_id, connection):
         abort(404)
     return summary
 
-
+#contributions page
 @app.route("/gifts/<int:gift_id>/contributions")
 def contributions(gift_id):
     gift = get_gift(gift_id)
@@ -122,7 +122,7 @@ def contributions(gift_id):
         total=total, remaining=remaining,
     )
 
-
+#add contribution function (assisted by AI)
 @app.route("/gifts/<int:gift_id>/add-contribution", methods=["GET", "POST"])
 def add_contribution(gift_id):
     with engine.connect() as connection:
@@ -157,7 +157,7 @@ def add_contribution(gift_id):
         return redirect(url_for("contributions", gift_id=gift_id))
     return render_template("add-contribution.html", gift=gift, remaining=remaining)
 
-
+#remove contribution function
 @app.route("/gifts/<int:gift_id>/contributions/<int:contribution_id>/remove", methods=["POST"])
 def remove_contribution(gift_id, contribution_id):
     get_gift(gift_id)
@@ -168,6 +168,6 @@ def remove_contribution(gift_id, contribution_id):
         """), {"contribution_id": contribution_id, "gift_id": gift_id})
     return redirect(url_for("contributions", gift_id=gift_id))
 
-
+#assisted by AI
 if __name__ == "__main__":
     app.run(debug=True, reloader_type="stat", port=5000)
