@@ -35,6 +35,8 @@ initialise_database()
 @app.route("/")
 def home():
     with engine.connect() as connection:
+        # EFFICIENCY 1 — SQLite aggregate: SUM and GROUP BY calculate every gift's
+        # total in one query, avoiding a separate contribution query for each gift.
         gifts = connection.execute(text("""
             SELECT gifts.id, gifts.gift_name, gifts.price,
                    COALESCE(SUM(contributions.amount), 0) AS total_contributed
@@ -85,11 +87,22 @@ def get_gift(gift_id):
     return gift
 
 
-def get_total_contributed(gift_id, connection):
-    return connection.execute(
-        text("SELECT COALESCE(SUM(amount), 0) FROM contributions WHERE gift_id = :gift_id"),
-        {"gift_id": gift_id},
-    ).scalar_one()
+def get_gift_summary(gift_id, connection):
+    """Fetch a gift and its running contribution total in one database query."""
+    # EFFICIENCY 2 — SQLite LEFT JOIN + COALESCE: this replaces the previous
+    # get_gift() query followed by get_total_contributed() query, reducing the
+    # add-contribution page from two database round trips to one.
+    summary = connection.execute(text("""
+        SELECT gifts.id, gifts.gift_name, gifts.price,
+               COALESCE(SUM(contributions.amount), 0) AS total_contributed
+        FROM gifts
+        LEFT JOIN contributions ON contributions.gift_id = gifts.id
+        WHERE gifts.id = :gift_id
+        GROUP BY gifts.id, gifts.gift_name, gifts.price
+    """), {"gift_id": gift_id}).mappings().first()
+    if summary is None:
+        abort(404)
+    return summary
 
 
 @app.route("/gifts/<int:gift_id>/contributions")
@@ -100,6 +113,8 @@ def contributions(gift_id):
             SELECT id, contributor_name, amount FROM contributions
             WHERE gift_id = :gift_id ORDER BY id DESC
         """), {"gift_id": gift_id}).mappings().all()
+    # EFFICIENCY 3 — Python generator expression: sum consumes each amount
+    # lazily, so Python does not allocate an extra list of amounts first.
     total = sum(contribution["amount"] for contribution in contribution_list)
     remaining = max(gift["price"] - total, 0)
     return render_template(
@@ -110,9 +125,9 @@ def contributions(gift_id):
 
 @app.route("/gifts/<int:gift_id>/add-contribution", methods=["GET", "POST"])
 def add_contribution(gift_id):
-    gift = get_gift(gift_id)
     with engine.connect() as connection:
-        total = get_total_contributed(gift_id, connection)
+        gift = get_gift_summary(gift_id, connection)
+    total = gift["total_contributed"]
     remaining = max(gift["price"] - total, 0)
 
     if request.method == "GET" and remaining <= 0:
@@ -123,14 +138,14 @@ def add_contribution(gift_id):
         try:
             amount = float(request.form["amount"])
         except ValueError:
-            return render_template("add-contribution.html", gift=gift, error="Please enter a valid amount."), 400
+            return render_template("add-contribution.html", gift=gift, remaining=remaining, error="Please enter a valid amount."), 400
         if not contributor_name:
-            return render_template("add-contribution.html", gift=gift, error="Please enter the contributor's name."), 400
+            return render_template("add-contribution.html", gift=gift, remaining=remaining, error="Please enter the contributor's name."), 400
         if amount <= 0:
-            return render_template("add-contribution.html", gift=gift, error="The amount must be greater than zero."), 400
+            return render_template("add-contribution.html", gift=gift, remaining=remaining, error="The amount must be greater than zero."), 400
         with engine.begin() as connection:
-            current_total = get_total_contributed(gift_id, connection)
-            current_remaining = max(gift["price"] - current_total, 0)
+            current_gift = get_gift_summary(gift_id, connection)
+            current_remaining = max(current_gift["price"] - current_gift["total_contributed"], 0)
             if current_remaining <= 0:
                 return render_template("add-contribution.html", gift=gift, remaining=0, error="This gift has already been fully funded."), 400
             if amount > current_remaining:
